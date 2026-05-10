@@ -1,33 +1,33 @@
-const pool = require('../config/db');
+const pool = require('../config/database');
 
 class Balance {
     static async create(userId) {
         const result = await pool.query(
-            'INSERT INTO balances (user_id, lkr_balance, available_balance, locked_balance) VALUES ($1, 10000, 10000, 0) RETURNING *',
-            [userId]
+            'INSERT INTO "Balance" (user_id, lkr_balance, available_balance, locked_balance) VALUES ($1, $2, $3, $4) RETURNING *',
+            [userId, 10000, 10000, 0]
         );
         return result.rows[0];
     }
 
     static async findByUserId(userId) {
         const result = await pool.query(
-            'SELECT * FROM balances WHERE user_id = $1',
+            'SELECT * FROM "Balance" WHERE user_id = $1',
             [userId]
         );
-        return result.rows[0];
-    }
-
-    static async updateBalances(userId, availableBalance, lockedBalance) {
-        const result = await pool.query(
-            'UPDATE balances SET available_balance = $1, locked_balance = $2, updated_at = NOW() WHERE user_id = $3 RETURNING *',
-            [availableBalance, lockedBalance, userId]
-        );
-        return result.rows[0];
+        return result.rows[0] || null;
     }
 
     static async lockFunds(userId, amount) {
+        // First check if there's enough available balance
+        const balance = await this.findByUserId(userId);
+        
+        if (!balance || balance.available_balance < amount) {
+            return null;
+        }
+        
+        // Lock the funds
         const result = await pool.query(
-            'UPDATE balances SET available_balance = available_balance - $1, locked_balance = locked_balance + $1 WHERE user_id = $2 AND available_balance >= $1 RETURNING *',
+            'UPDATE "Balance" SET available_balance = available_balance - $1, locked_balance = locked_balance + $1 WHERE user_id = $2 RETURNING *',
             [amount, userId]
         );
         return result.rows[0];
@@ -35,7 +35,7 @@ class Balance {
 
     static async unlockFunds(userId, amount) {
         const result = await pool.query(
-            'UPDATE balances SET available_balance = available_balance + $1, locked_balance = locked_balance - $1 WHERE user_id = $2 RETURNING *',
+            'UPDATE "Balance" SET available_balance = available_balance + $1, locked_balance = locked_balance - $1 WHERE user_id = $2 RETURNING *',
             [amount, userId]
         );
         return result.rows[0];
@@ -43,7 +43,7 @@ class Balance {
 
     static async releaseLockedFunds(userId, amount) {
         const result = await pool.query(
-            'UPDATE balances SET locked_balance = locked_balance - $1 WHERE user_id = $2 RETURNING *',
+            'UPDATE "Balance" SET locked_balance = locked_balance - $1 WHERE user_id = $2 RETURNING *',
             [amount, userId]
         );
         return result.rows[0];

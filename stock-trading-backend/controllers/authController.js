@@ -24,11 +24,8 @@ const register = async (req, res) => {
         // Hash password
         const hashedPassword = await bcrypt.hash(password, 10);
         
-        // Create user
+        // Create user (balance is created automatically in User.create())
         const user = await User.create(email, hashedPassword);
-        
-        // Create balance for user (10,000 LKR starting balance)
-        await Balance.create(user.id);
         
         // Generate JWT
         const token = jwt.sign(
@@ -44,8 +41,9 @@ const register = async (req, res) => {
             userId: user.id
         });
     } catch (err) {
-        console.error('Register error:', err);
-        res.status(500).json({ error: 'Server error' });
+        console.error('Register error:', err.message);
+        console.error('Error stack:', err.stack);
+        res.status(500).json({ error: 'Server error', details: err.message });
     }
 };
 
