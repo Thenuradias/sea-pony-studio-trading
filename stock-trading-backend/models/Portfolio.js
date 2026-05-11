@@ -1,55 +1,79 @@
-const pool = require('../config/db');
+const prisma = require('../config/db');
 
 class Portfolio {
     static async updateHoldings(userId, stockId, quantityChange) {
-        const existing = await pool.query(
-            'SELECT * FROM portfolios WHERE user_id = $1 AND stock_id = $2',
-            [userId, stockId]
-        );
-        
-        if (existing.rows.length === 0) {
-            if (quantityChange > 0) {
-                const result = await pool.query(
-                    'INSERT INTO portfolios (user_id, stock_id, quantity) VALUES ($1, $2, $3) RETURNING *',
-                    [userId, stockId, quantityChange]
-                );
-                return result.rows[0];
+        const existing = await prisma.portfolio.findUnique({
+            where: {
+                user_id_stock_id: {
+                    user_id: userId,
+                    stock_id: stockId
+                }
             }
+        });
+        
+        if (!existing) {
+            if (quantityChange > 0) {
+                return await prisma.portfolio.create({
+                    data: {
+                        user_id: userId,
+                        stock_id: stockId,
+                        quantity: quantityChange
+                    }
+                });
+            }
+            return null;
         } else {
-            const newQuantity = existing.rows[0].quantity + quantityChange;
+            const newQuantity = existing.quantity + quantityChange;
             if (newQuantity <= 0) {
-                await pool.query(
-                    'DELETE FROM portfolios WHERE user_id = $1 AND stock_id = $2',
-                    [userId, stockId]
-                );
+                await prisma.portfolio.delete({
+                    where: {
+                        user_id_stock_id: {
+                            user_id: userId,
+                            stock_id: stockId
+                        }
+                    }
+                });
                 return null;
             } else {
-                const result = await pool.query(
-                    'UPDATE portfolios SET quantity = $1, updated_at = NOW() WHERE user_id = $2 AND stock_id = $3 RETURNING *',
-                    [newQuantity, userId, stockId]
-                );
-                return result.rows[0];
+                return await prisma.portfolio.update({
+                    where: {
+                        user_id_stock_id: {
+                            user_id: userId,
+                            stock_id: stockId
+                        }
+                    },
+                    data: {
+                        quantity: newQuantity,
+                        updated_at: new Date()
+                    }
+                });
             }
         }
     }
 
     static async getUserPortfolio(userId) {
-        const result = await pool.query(
-            `SELECT p.*, s.symbol, s.name, s.current_price 
-             FROM portfolios p 
-             JOIN stocks s ON p.stock_id = s.id 
-             WHERE p.user_id = $1 AND p.quantity > 0`,
-            [userId]
-        );
-        return result.rows;
+        return await prisma.portfolio.findMany({
+            where: {
+                user_id: userId,
+                quantity: { gt: 0 }
+            },
+            include: {
+                stock: {
+                    select: { symbol: true, name: true, current_price: true }
+                }
+            }
+        });
     }
 
     static async getHolding(userId, stockId) {
-        const result = await pool.query(
-            'SELECT * FROM portfolios WHERE user_id = $1 AND stock_id = $2',
-            [userId, stockId]
-        );
-        return result.rows[0];
+        return await prisma.portfolio.findUnique({
+            where: {
+                user_id_stock_id: {
+                    user_id: userId,
+                    stock_id: stockId
+                }
+            }
+        });
     }
 }
 

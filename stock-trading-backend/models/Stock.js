@@ -1,35 +1,32 @@
-const pool = require('../config/db');
+const prisma = require('../config/db');
 
 class Stock {
     static async findAll() {
-        const result = await pool.query(
-            'SELECT * FROM stocks ORDER BY symbol'
-        );
-        return result.rows;
+        return await prisma.stock.findMany({
+            orderBy: { symbol: 'asc' }
+        });
     }
 
     static async findBySymbol(symbol) {
-        const result = await pool.query(
-            'SELECT * FROM stocks WHERE symbol = $1',
-            [symbol]
-        );
-        return result.rows[0];
+        return await prisma.stock.findUnique({
+            where: { symbol }
+        });
     }
 
     static async findById(id) {
-        const result = await pool.query(
-            'SELECT * FROM stocks WHERE id = $1',
-            [id]
-        );
-        return result.rows[0];
+        return await prisma.stock.findUnique({
+            where: { id }
+        });
     }
 
     static async updatePrice(stockId, newPrice) {
-        const result = await pool.query(
-            'UPDATE stocks SET current_price = $1, last_price_updated = NOW() WHERE id = $2 RETURNING *',
-            [newPrice, stockId]
-        );
-        return result.rows[0];
+        return await prisma.stock.update({
+            where: { id: stockId },
+            data: {
+                current_price: newPrice,
+                last_price_updated: new Date()
+            }
+        });
     }
 }
 

@@ -1,4 +1,4 @@
-const pool = require('../config/db');
+const prisma = require('../config/db');
 require('dotenv').config();
 
 const stocks = [
@@ -17,13 +17,18 @@ const seedStocks = async () => {
         console.log('🌱 Seeding stocks...');
         
         for (const stock of stocks) {
-            await pool.query(
-                `INSERT INTO stocks (id, symbol, name, current_price) 
-                 VALUES (gen_random_uuid(), $1, $2, $3) 
-                 ON CONFLICT (symbol) DO UPDATE 
-                 SET name = EXCLUDED.name, current_price = EXCLUDED.current_price`,
-                [stock.symbol, stock.name, stock.price]
-            );
+            await prisma.stock.upsert({
+                where: { symbol: stock.symbol },
+                update: {
+                    name: stock.name,
+                    current_price: stock.price
+                },
+                create: {
+                    symbol: stock.symbol,
+                    name: stock.name,
+                    current_price: stock.price
+                }
+            });
             console.log(`✅ Added ${stock.symbol} - $${stock.price}`);
         }
         

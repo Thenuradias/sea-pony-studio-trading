@@ -1,0 +1,16 @@
+{
+  "name": "sea-pony-studio-trading",
+  "version": "1.0.0",
+  "description": "Stock trading platform with React frontend and Node.js backend",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "stock-trading-backend"
+  ],
+  "scripts": {
+    "install-all": "npm install",
+    "dev": "npm run dev --workspaces",
+    "build": "npm run build --workspaces",
+    "test": "npm test --workspaces"
+  }
+}

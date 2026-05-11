@@ -1,65 +1,78 @@
-const pool = require('../config/db');
+const prisma = require('../config/db');
 
 class Order {
     static async create(orderData) {
         const { userId, stockId, side, type, price, quantity, remainingQuantity } = orderData;
         
-        const result = await pool.query(
-            `INSERT INTO orders (id, user_id, stock_id, side, type, price, quantity, remaining_quantity, status) 
-             VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, 'OPEN') 
-             RETURNING *`,
-            [userId, stockId, side, type, price, quantity, remainingQuantity || quantity]
-        );
-        return result.rows[0];
+        return await prisma.order.create({
+            data: {
+                user_id: userId,
+                stock_id: stockId,
+                side,
+                type,
+                price: price || null,
+                quantity,
+                remaining_quantity: remainingQuantity || quantity,
+                status: 'OPEN'
+            }
+        });
     }
 
     static async findOpenOrdersByStock(stockId) {
-        const buyOrders = await pool.query(
-            `SELECT * FROM orders 
-             WHERE stock_id = $1 AND side = 'BUY' AND status IN ('OPEN', 'PARTIALLY_FILLED') 
-             ORDER BY price DESC, created_at ASC`,
-            [stockId]
-        );
+        const buyOrders = await prisma.order.findMany({
+            where: {
+                stock_id: stockId,
+                side: 'BUY',
+                status: { in: ['OPEN', 'PARTIALLY_FILLED'] }
+            },
+            orderBy: [
+                { price: 'desc' },
+                { created_at: 'asc' }
+            ]
+        });
         
-        const sellOrders = await pool.query(
-            `SELECT * FROM orders 
-             WHERE stock_id = $1 AND side = 'SELL' AND status IN ('OPEN', 'PARTIALLY_FILLED') 
-             ORDER BY price ASC, created_at ASC`,
-            [stockId]
-        );
+        const sellOrders = await prisma.order.findMany({
+            where: {
+                stock_id: stockId,
+                side: 'SELL',
+                status: { in: ['OPEN', 'PARTIALLY_FILLED'] }
+            },
+            orderBy: [
+                { price: 'asc' },
+                { created_at: 'asc' }
+            ]
+        });
         
-        return { buyOrders: buyOrders.rows, sellOrders: sellOrders.rows };
+        return { buyOrders, sellOrders };
     }
 
     static async updateOrder(orderId, remainingQuantity, status) {
-        const result = await pool.query(
-            `UPDATE orders 
-             SET remaining_quantity = $1, status = $2, updated_at = NOW() 
-             WHERE id = $3 
-             RETURNING *`,
-            [remainingQuantity, status, orderId]
-        );
-        return result.rows[0];
+        return await prisma.order.update({
+            where: { id: orderId },
+            data: {
+                remaining_quantity: remainingQuantity,
+                status,
+                updated_at: new Date()
+            }
+        });
     }
 
     static async findById(orderId) {
-        const result = await pool.query(
-            'SELECT * FROM orders WHERE id = $1',
-            [orderId]
-        );
-        return result.rows[0];
+        return await prisma.order.findUnique({
+            where: { id: orderId }
+        });
     }
 
     static async getUserOrders(userId) {
-        const result = await pool.query(
-            `SELECT o.*, s.symbol, s.name 
-             FROM orders o 
-             JOIN stocks s ON o.stock_id = s.id 
-             WHERE o.user_id = $1 
-             ORDER BY o.created_at DESC`,
-            [userId]
-        );
-        return result.rows;
+        return await prisma.order.findMany({
+            where: { user_id: userId },
+            include: {
+                stock: {
+                    select: { symbol: true, name: true }
+                }
+            },
+            orderBy: { created_at: 'desc' }
+        });
     }
 }
 
